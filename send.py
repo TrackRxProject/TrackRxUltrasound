@@ -33,15 +33,24 @@ py_audio = pyaudio.PyAudio()
 py_audio_stream = py_audio.open(format=FORMAT, channels=CHANNELS,
 								rate=RATE, output=True)
 
+START_BYTE_STRING = "11111111"
+STOP_BYTE_STRING = "00000000"
+
 def pattern_generator(message):
-    temp = []
-    for x in message:
-        temp.append(bin(ord(x))[2:]);
+    string_message = []
+    for char in message:
+        string_message.append(bin(ord(char))[2:]);
 
     pattern = ''
-    for x in temp:
-        for u in x:
-            pattern += (u+u+u)
+    for char in string_message:
+        parity = 0
+        for bit in char:
+            pattern += (bit+bit+bit)
+            parity += int(bit)
+        parity = parity % 2
+        pattern += str(parity) + str(parity) + str(parity)
+    pattern = START_BYTE_STRING + pattern + STOP_BYTE_STRING
+    print pattern
     return pattern
 
 def tone_generator(pattern, freq, datasize, rate):
@@ -63,9 +72,7 @@ def sine_generator(frequency, datasize, rate, amp):
     return amp*numpy.sin(numpy.arange(datasize) * factor)
 
 if __name__ == '__main__':
-    t = fgenerate('b',20000, 441, 44100)
-    plt.plot(t)
-    plt.show()
+    #t = fgenerate('a',20000, 441, 44100)
     while True:
         #t = tone_generator('11001100', 10000, 441, 44100)
         t = fgenerate('b', 20000, 441, 44100)
