@@ -26,7 +26,8 @@ FREQ = args.freq
 CHANNELS = args.channels
 FRAME_LENGTH = args.framelen
 CHUNK = args.chunk
-FORMAT = pyaudio.paFloat32
+FORMAT = pyaudio.paInt16
+#FORMAT = pyaudio.paFloat32
 
 # Set up PyAudio
 py_audio = pyaudio.PyAudio()
@@ -55,11 +56,14 @@ def pattern_generator(message):
 
 def tone_generator(pattern, freq, datasize, rate):
     tone = numpy.array([])
+    offset = 0
     for bit in pattern:
-        amp = 100 if (bit == '1') else 0
-        sine = sine_generator(freq, datasize, rate, amp)
+        amp = 12000 if (bit == '1') else 0
+        sine = sine_generator(freq, datasize, rate, amp, offset)
+        for i in range(len(sine)):
+            sine[i] = int(sine[i])
         tone = numpy.concatenate([tone,sine])
-    tone = tone * .25
+        offset += datasize
     return tone
 
 def fgenerate(message, freq, datasize, rate):
@@ -67,16 +71,14 @@ def fgenerate(message, freq, datasize, rate):
     tone = tone_generator(pattern, freq, datasize, rate)
     return tone
 
-def sine_generator(frequency, datasize, rate, amp):
+def sine_generator(frequency, datasize, rate, amp, offset):
     factor = float(frequency) * (math.pi * 2) / rate
-    return amp*numpy.sin(numpy.arange(datasize) * factor)
+    return amp*numpy.sin((numpy.arange(datasize)+offset) * factor)
 
 if __name__ == '__main__':
-    #t = fgenerate('a',20000, 441, 44100)
     while True:
-        #t = tone_generator('11001100', 10000, 441, 44100)
-        t = fgenerate('b', 20000, 441, 44100)
-        py_audio_stream.write(t.astype(numpy.float32).tostring())
+        a = fgenerate('a', 18000, 441, 44100)
+        py_audio_stream.write(a.astype(numpy.int16).tostring())
 
     #py_audio_stream.close()
     #py_audio.terminate()
