@@ -5,7 +5,6 @@ import math
 import matplotlib.pyplot as plt
 import pyaudio
 import struct
-import numpy
 
 
 # Set the parameters for sending a message
@@ -19,7 +18,7 @@ parser.add_argument('--channels', '-c', dest='channels', type=int,
 parser.add_argument('--framelen', '-l', dest='framelen', type=int,
 				default = 3, help='Set the frame length (default:3)')
 parser.add_argument('--chunk', '-k', dest='chunk', type=int,
-				default = 256, help='Set the chunk size (default:256)')
+				default = 441, help='Set the chunk size (default:256)')
 args = parser.parse_args()
 RATE = args.rate
 FREQ = args.freq
@@ -51,52 +50,35 @@ def pattern_generator(message):
         parity = parity % 2
         pattern += str(parity) + str(parity) + str(parity)
     pattern = START_BYTE_STRING + pattern + STOP_BYTE_STRING
-    print pattern
     return pattern
 
 def tone_generator(pattern, freq, datasize, rate):
-    tone = numpy.array([])
+    tone = []
     offset = 0
     for bit in pattern:
         amp = 12000 if (bit == '1') else 0
         sine = sine_generator(freq, datasize, rate, amp, offset)
-        for i in range(len(sine)):
-            sine[i] = int(sine[i])
-        tone = numpy.concatenate([tone,sine])
+        tone += sine
         offset += datasize
-    return tone
+    return [struct.pack('h', frame) for frame in tone]
 
-def fgenerate(message, freq, datasize, rate):
+def send_message(message, freq, datasize, rate):
     pattern = pattern_generator(message)
     tone = tone_generator(pattern, freq, datasize, rate)
-    return tone
+    tone = ''.join(tone)
+    py_audio_stream.write(tone)
 
 def sine_generator(frequency, datasize, rate, amp, offset):
     factor = float(frequency) * (math.pi * 2) / rate
-    return amp*numpy.sin((numpy.arange(datasize)+offset) * factor)
+    sine = []
+    for i in range(datasize):
+        sine.append(int(amp*math.sin((i+offset)*factor)))
+    return sine
 
 if __name__ == '__main__':
+    print "This is the TrackRx Ultrasound chat test program."
+    print "Please press CTRL-C to exit."
+	# later, use try-catch for CTRL-C
     while True:
-        a = fgenerate('a', 18000, 441, 44100)
-        py_audio_stream.write(a.astype(numpy.int16).tostring())
-
-    #py_audio_stream.close()
-    #py_audio.terminate()
-    # print "This is the TrackRx Ultrasound chat test program."
-	# print "Please press CTRL-C to exit."
-	# # later, use try-catch for CTRL-C
-	# while True:
-	# 	message = raw_input("> ")
-	# 	# send message
-
-    
-#while True:
-# t = fgenerate('a', 15000)
-# plt.plot(t)
-# plt.show()
-# while True:
-#     output = prepare_pyaudio_buffer(t)
-# #plt.plot(t)
-# #plt.show()
-#     py_audio_stream.write(output)
-
+        message = raw_input("> ")
+        send_message(message, FREQ, CHUNK, RATE)
