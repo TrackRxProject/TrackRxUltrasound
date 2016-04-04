@@ -26,7 +26,6 @@ CHANNELS = args.channels
 FRAME_LENGTH = args.framelen
 CHUNK = args.chunk
 FORMAT = pyaudio.paInt16
-#FORMAT = pyaudio.paFloat32
 
 # Set up PyAudio
 py_audio = pyaudio.PyAudio()
@@ -39,7 +38,10 @@ STOP_BYTE_STRING = "00000000"
 def pattern_generator(message):
     string_message = []
     for char in message:
-        string_message.append(bin(ord(char))[2:]);
+        char_rep = bin(ord(char))[2:]
+        while len(char_rep) < 7:
+            char_rep = '0' + char_rep
+        string_message.append(char_rep);
 
     pattern = ''
     for char in string_message:
