@@ -13,7 +13,7 @@ import Queue
 RATE = 44100  
 CHANNELS = 1
 INPUT_BLOCK_TIME = 0.01
-FRAME_SIZE = int(RATE*INPUT_BLOCK_TIME)
+FRAME_SIZE = 1024
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
 
@@ -27,36 +27,43 @@ frames = Queue.Queue(5000)
 start_bit_count = 0
 frame_count = 0
 message_signal = []
+messages = ""
 def process_frame():
 	global find_start
 	global start_bit_count
 	global frame_count
 	global message_signal
+	global messages
+	global start_message
 
 	while True:
 		try:
 			frame = frames.get(False)
 			if find_start:
+				message_signal = []
 				signal = envelope(frame)
 				if (sum(signal)/len(signal) > .8):
-					start_bit_count += 1
+					start_message += "1"
 				else:
-					start_bit_count = 0
-				if start_bit_count == 8:
+					start_message += "0"
+				if start_bit_count == 32:
 					find_start = False
 			else:
-				if frame_count != 72:
+				if frame_count != (8*5*num_characters):
 					message_signal += frame
 					frame_count += 1
 				else:
 					message_signal = envelope(message_signal)
 					message = ""
-					for i in range(0, len(message_signal), 441):
-						if (sum(message_signal[i:i+441])/441 > 0.8):
+					for i in range(0, len(message_signal), FRAME_SIZE):
+						if (sum(message_signal[i:i+FRAME_SIZE])/FRAME_SIZE > 0.8):
 							message += "1"
 						else:
 							message += "0"
-					print decode_message(message)
+					try:
+						messages += decode_message(message) + "\n"
+					except TypeError:
+						message += "ERRROR!" + "\n"
 					# set up to parse another message
 					find_start = 1
 					start_bit_count = 0
@@ -72,9 +79,9 @@ def decode_message(message):
     # take the majority of each set of three
     # to determine what that bit should be
     message_by_majority = ""
-    for i in range(0, len(message), 3):
-        sum_of_bits = int(message[i]) + int(message[i+1]) + int(message[i+2])
-        if sum_of_bits >= 2:
+    for i in range(0, len(message), 5):
+        sum_of_bits = int(message[i]) + int(message[i+1]) + int(message[i+2]) + int(message[i+3]) + int(message[i+4])
+        if sum_of_bits >= 3:
             message_by_majority += "1"
         else:
             message_by_majority += "0"
@@ -89,7 +96,6 @@ def decode_message(message):
             message_without_parity += message_by_majority[i+j]
         char_parity = sum_of_bits % 2
         if char_parity != int(message_by_majority[i+7]):
-            print "Error: Parity does not match"
             return None
 
     # rebuild each character from its bits
@@ -114,10 +120,9 @@ def envelope(signal):
 	for i in range(len(signal)):
 		signal[i] = abs(signal[i])
 
-	# low pass filter the signal at 10Hz
-	# Using the filtered signal makes it worse :O
-	RC = 1.0/(100*2*3.14)
-	dt = 1.0/44100.0
+	
+	RC = FRAME_SIZE/(RATE*2*3.14)
+	dt = 1.0/RATE
 	alpha = dt/(dt+RC)
 	filtered_signal = [0] * len(signal)
 	filtered_signal[0] = signal[0]
@@ -129,6 +134,9 @@ def envelope(signal):
 	N = 3						
 	filtered_signal = np.convolve(filtered_signal, np.ones((N,))/N, mode='valid')
 	filtered_signal = filtered_signal.tolist()
+
+	#plt.plot(filtered_signal)
+	#plt.show()
 
 	for i in range(len(filtered_signal)):
 		if filtered_signal[i] > 100:
@@ -166,13 +174,15 @@ def callback(data, frame_count, time_info, status):
 	block = struct.unpack(format, data)
 	block = [b for b in block]
 	sample_cnt += 1
+	#signal += block
 	if not frames.full():
 		frames.put(block, False)
 	return (data, pyaudio.paContinue)
 	
 
-
+num_characters = 0
 if __name__ == "__main__":
+	num_characters = len(raw_input("> "))
 	py_audio = pyaudio.PyAudio()
 	stream = py_audio.open(format=FORMAT, channels=CHANNELS, rate=RATE,
 							frames_per_buffer=FRAME_SIZE,
@@ -183,9 +193,8 @@ if __name__ == "__main__":
 	stream.start_stream()
 	while stream.is_active():
 		time.sleep(SAMPLE_TIMEOUT)
-		# if sample_cnt > 500:
-		# 	stream.stop_stream()
-	plt.plot(signal)
-	plt.ylim((0,2))
-	plt.show()
+		if sample_cnt > ((5*8*num_characters)+32)*15+100:
+			stream.stop_stream()
+	print messages
+
 	

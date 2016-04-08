@@ -5,6 +5,7 @@ import math
 import matplotlib.pyplot as plt
 import pyaudio
 import struct
+import time
 
 
 # Set the parameters for sending a message
@@ -18,7 +19,7 @@ parser.add_argument('--channels', '-c', dest='channels', type=int,
 parser.add_argument('--framelen', '-l', dest='framelen', type=int,
 				default = 3, help='Set the frame length (default:3)')
 parser.add_argument('--chunk', '-k', dest='chunk', type=int,
-				default = 441, help='Set the chunk size (default:256)')
+				default = 1024, help='Set the chunk size (default:1024)')
 args = parser.parse_args()
 RATE = args.rate
 FREQ = args.freq
@@ -32,11 +33,12 @@ py_audio = pyaudio.PyAudio()
 py_audio_stream = py_audio.open(format=FORMAT, channels=CHANNELS,
 								rate=RATE, output=True)
 
-START_BYTE_STRING = "11111111"
+START_BYTE_STRING = "1111111111111111111111111111111111111111"
 STOP_BYTE_STRING = "00000000"
 
 def pattern_generator(message):
     string_message = []
+    #message = str(len(message)) + message
     for char in message:
         char_rep = bin(ord(char))[2:]
         while len(char_rep) < 7:
@@ -47,10 +49,11 @@ def pattern_generator(message):
     for char in string_message:
         parity = 0
         for bit in char:
-            pattern += (bit+bit+bit)
+            pattern += (bit+bit+bit+bit+bit)
             parity += int(bit)
         parity = parity % 2
         pattern += str(parity) + str(parity) + str(parity)
+        pattern += str(parity) + str(parity)
     pattern = START_BYTE_STRING + pattern + STOP_BYTE_STRING
     return pattern
 
@@ -62,6 +65,8 @@ def tone_generator(pattern, freq, datasize, rate):
         sine = sine_generator(freq, datasize, rate, amp, offset)
         tone += sine
         offset += datasize
+    #plt.plot(tone)
+    #plt.show()
     return [struct.pack('h', frame) for frame in tone]
 
 def send_message(message, freq, datasize, rate):
@@ -81,6 +86,7 @@ if __name__ == '__main__':
     print "This is the TrackRx Ultrasound chat test program."
     print "Please press CTRL-C to exit."
 	# later, use try-catch for CTRL-C
-    while True:
-        message = raw_input("> ")
+    message = raw_input("> ")
+    for i in range(15):
         send_message(message, FREQ, CHUNK, RATE)
+        #time.sleep(1)
